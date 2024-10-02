@@ -37,7 +37,17 @@ using PyTorch 2.x DTensor objects.
   2019 Article No. 10, Pages 1-20, DOI:
   [10.1145/3295500.3356207](https://dl.acm.org/doi/10.1145/3295500.3356207).
 
-  + :doc:`BibTex <bib/Dryden2019channel>`
+```
+    @INPROCEEDINGS{8820780,
+      author={N. {Dryden} and N. {Maruyama} and T. {Benson} and T. {Moon} and M. {Snir} and B. {Van Essen}},
+      booktitle={2019 IEEE International Parallel and Distributed Processing Symposium (IPDPS)},
+      title={Improving Strong-Scaling of {CNN} Training by Exploiting Finer-Grained Parallelism},
+      year={2019},
+      volume={},
+      number={},
+      pages={210-220},
+      doi={10.1109/IPDPS.2019.00031}}
+```
 
 + Nikoli Dryden, Naoya Maruyama, Tom Benson, Tim Moon, Marc Snir,
   Brian Van Essen. ["Improving Strong-Scaling of CNN Training by
@@ -48,9 +58,7 @@ using PyTorch 2.x DTensor objects.
   Symposium*](http://www.ipdps.org/ipdps2019/2019-advance-program.html),
   2019.
 
-  + :doc:`BibTex <bib/Dryden2019spatial>`
   + [arXiv.org/abs/1903.06681](https://arxiv.org/abs/1903.06681)
-
 ```
     @INPROCEEDINGS{8820780,
       author={N. {Dryden} and N. {Maruyama} and T. {Benson} and T. {Moon} and M. {Snir} and B. {Van Essen}},
