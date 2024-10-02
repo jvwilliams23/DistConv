@@ -49,7 +49,7 @@ using PyTorch 2.x DTensor objects.
   2019.
 
   + :doc:`BibTex <bib/Dryden2019spatial>`
-  + [arXiv.org/abs/1903.06681](https://arxiv.org/abs/1903.06681)`_
+  + [arXiv.org/abs/1903.06681](https://arxiv.org/abs/1903.06681)
 
 A complete list of LBANN related  publications, presentations and posters are shown
 [here](https://lbann.readthedocs.io/en/latest/publications.html).
