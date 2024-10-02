@@ -51,6 +51,7 @@ using PyTorch 2.x DTensor objects.
   + :doc:`BibTex <bib/Dryden2019spatial>`
   + [arXiv.org/abs/1903.06681](https://arxiv.org/abs/1903.06681)
 
+```
     @INPROCEEDINGS{8820780,
       author={N. {Dryden} and N. {Maruyama} and T. {Benson} and T. {Moon} and M. {Snir} and B. {Van Essen}},
       booktitle={2019 IEEE International Parallel and Distributed Processing Symposium (IPDPS)},
@@ -60,7 +61,7 @@ using PyTorch 2.x DTensor objects.
       number={},
       pages={210-220},
       doi={10.1109/IPDPS.2019.00031}}
-
+```
 
 A complete list of LBANN related  publications, presentations and posters are shown
 [here](https://lbann.readthedocs.io/en/latest/publications.html).
