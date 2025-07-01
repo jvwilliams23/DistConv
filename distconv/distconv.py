@@ -169,7 +169,7 @@ def check_is_distconv_supported(
     if kernel_size % 2 == 1:
         if (kernel_size // 2) != padding[shard_dim]:
             raise Exception(
-                'DistConv: when kernel size is odd, padding must be equivalent to "same"'
+                f'DistConv: when kernel size is odd ({kernel_size}), padding must be equivalent to "same" but found ({padding})'
             )
     else:
         if padding[shard_dim] != 0:
@@ -383,18 +383,31 @@ def distconv_forward(func: Callable, args: Tuple, kwargs: Dict) -> "DCTensor":
     args = list(args)
 
     # Unpack the necessary arguments
-    tensor, weight, bias, stride, padding, dilation = args[:6]
+    tensor, weight, bias, stride, padding, dilation, transpose, output_padding = args[
+        :8
+    ]
+    padding_orig = copy(padding)
 
     # Extract the parallel strategy and shard dimension from the input tensor
     parallel_strategy = tensor._parallel_strategy
     shard_dim = parallel_strategy.shard_dim
+    shard_ind = parallel_strategy.shard_ind
+    world_size = parallel_strategy.world_size
+    kernel_size = weight.size(shard_dim)
     is_periodic = tensor._is_periodic
     for i, shard_dim_i in enumerate(shard_dim):
         if is_periodic[i]:
-            assert padding[shard_dim_i - 2] == 0, (
-                "Cannot zero-pad a tensor marked for periodic padding on the shard dimension"
-            )
-            padding[shard_dim_i - 2] = tensor._periodic_shard_padding[i]
+            if transpose:
+                assert padding[shard_dim_i - 2] == dilation[shard_dim_i - 2] * (
+                    kernel_size - 1
+                ), f"padding is incorrect"
+                padding[shard_dim_i - 2] = tensor._periodic_shard_padding[i]
+                padding_orig[shard_dim_i - 2] = tensor._periodic_shard_padding[i]
+            else:
+                assert padding[shard_dim_i - 2] == 0, (
+                    "Cannot zero-pad a tensor marked for periodic padding on the shard dimension"
+                )
+                padding[shard_dim_i - 2] = tensor._periodic_shard_padding[i]
 
     # Unwrap the underlying tensor from the DCTensor
     torch_tensor = tensor._tensor
@@ -420,10 +433,24 @@ def distconv_forward(func: Callable, args: Tuple, kwargs: Dict) -> "DCTensor":
         # Save the tensor with its halo for the backward pass.
         tensor._tensor_with_halo = tensor_with_halo
 
+        if transpose:
+            padding[shard_dim_i - 2] = dilation[shard_dim_i - 2] * (kernel_size - 1)
+            for dim_i in range(tensor.ndim - 2):
+                if dim_i + 2 == shard_dim_i:
+                    padding[shard_dim_i - 2] += (kernel_size - 1 - padding_orig[dim_i]) * (
+                        stride[dim_i] - 1
+                    )
+                    # modify output_padding for strided transpose convolution
+                    if shard_ind < world_size - 1:
+                        output_padding[dim_i] += (
+                            tensor.size(shard_dim_i) + 2 * padding_orig[dim_i] - kernel_size
+                        ) % stride[dim_i]
+        else:
+            padding[shard_dim_i - 2] = 0
         # Update the arguments with the tensor including halos and adjusted padding
         args[0] = tensor_with_halo
-        padding[shard_dim_i - 2] = 0
         args[4] = padding
+        args[7] = output_padding
 
     tensor._tensor = tensor_with_halo
     for i, shard_dim_i in enumerate(shard_dim):
@@ -456,20 +483,40 @@ def distconv_backward(
     args = list(args)
 
     # Unpack the necessary arguments
-    grad_out_tensor, input_tensor, weight, bias_size, stride, padding, dilation = args[
-        :7
-    ]
+    (
+        grad_out_tensor,
+        input_tensor,
+        weight,
+        bias_size,
+        stride,
+        padding,
+        dilation,
+        transpose,
+        output_padding,
+    ) = args[:9]
+    padding_orig = copy(padding)
 
     # Extract the parallel strategy and shard dimension from the gradient output tensor
     parallel_strategy = grad_out_tensor._parallel_strategy
     shard_dim = parallel_strategy.shard_dim
+    shard_ind = parallel_strategy.shard_ind
+    world_size = parallel_strategy.world_size
     is_periodic = input_tensor._is_periodic
+    padding_orig = [0] * len(padding)
     for i, shard_dim_i in enumerate(shard_dim):
+        kernel_size = weight.size(shard_dim_i)
         if is_periodic[i]:
-            assert padding[shard_dim_i - 2] == 0, (
-                "Cannot zero-pad a tensor marked for periodic padding on the shard dimension"
-            )
-            padding[shard_dim_i - 2] = input_tensor._periodic_shard_padding[i]
+            if transpose:
+                assert padding[shard_dim_i - 2] == dilation[shard_dim_i - 2] * (
+                    kernel_size - 1
+                ), f"shard-dim padding incorrect"
+                padding[shard_dim_i - 2] = input_tensor._periodic_shard_padding[i]
+                padding_orig[shard_dim_i - 2] = input_tensor._periodic_shard_padding[i]
+            else:
+                assert padding[shard_dim_i - 2] == 0, (
+                    "Cannot zero-pad a tensor marked for periodic padding on the shard dimension"
+                )
+                padding[shard_dim_i - 2] = input_tensor._periodic_shard_padding[i]
 
     # Unwrap the underlying tensors from the DCTensors
     grad_out_tensor = grad_out_tensor._tensor
@@ -487,6 +534,20 @@ def distconv_backward(
         halo_size = kernel_size // 2 if (kernel_size % 2 == 1) else 0
         halo_sizes.append(halo_size)
         padding[shard_dim_i - 2] = 0
+        if transpose:
+            padding[shard_dim_i - 2] = dilation[shard_dim_i - 2] * (kernel_size - 1)
+            for dim_i in range(input_tensor.ndim - 2):
+                if dim_i + 2 == shard_dim_i:
+                    padding[dim_i] += padding_orig[dim_i] * (stride[dim_i] - 1)
+                    if shard_ind < world_size - 1:
+                        crop_amount = (
+                            input_tensor.size(shard_dim_i)
+                            + 2 * padding_orig[dim_i]
+                            - kernel_size
+                        ) % stride[dim_i]
+                        output_padding[dim_i] = crop_amount
+        else:
+            padding[shard_dim_i - 2] = 0
 
     # Get the input tensor including halos if available, otherwise perform forward halo exchange
     if input_tensor._tensor_with_halo is not None:
@@ -506,6 +567,7 @@ def distconv_backward(
     args[0] = grad_out_tensor
     args[1] = input_tensor_with_halo
     args[5] = padding
+    args[8] = output_padding
 
     # Perform the backward convolution operation
     grad_in_tensor, grad_weight, grad_bias = func(*args, **kwargs)
