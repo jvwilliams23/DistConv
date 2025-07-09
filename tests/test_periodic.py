@@ -1,10 +1,12 @@
+from math import ceil
+
 import pytest
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-from utils import cleanup_parallel_strategy, fp32_allclose
-
 from distconv import DCTensor, DistConvDDP, ParallelStrategy
+
+from utils import cleanup_parallel_strategy, fp32_allclose
 
 
 def generate_configs():
@@ -50,7 +52,7 @@ def test_periodic(
 
     conv_kwargs = dict(
         kernel_size=kernel_size,
-        padding=kernel_size // 2,
+        padding=ceil((kernel_size - stride) / 2),
         bias=False,
         stride=stride,
         padding_mode="circular",
