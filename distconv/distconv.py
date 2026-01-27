@@ -62,7 +62,7 @@ class ParallelStrategy:
             self.shard_ind.append(linear_idx // stride)
             linear_idx %= stride
 
-        self.distconv_dim_names = tuple([f"dc{i}" for i in range(len(self.shard_dim))])
+        self.distconv_dim_names = tuple([f"dc{i}" for i in self.shard_dim])
         mesh_shape = (self.ddp_ranks,) + self.num_shards
         mesh_dim_names = ("ddp",) + self.distconv_dim_names
 
@@ -116,6 +116,14 @@ class ParallelStrategy:
             self._shard_dim = tuple(value)
         else:
             raise TypeError(f"Unexpected shard_dim type {type(value)}")
+        # Validate each shard dimension is >= 2 (spatial dimensions only)
+        for dim in self._shard_dim:
+            if dim < 2:
+                raise ValueError(
+                    f"Invalid shard_dim value: {dim}. "
+                    f"DistConv only supports sharding spatial dimensions (dim >= 2). "
+                    f"Cannot shard batch dimension (0) or channel dimension (1)."
+                )
         # Validate length matches num_shards if already set
         if hasattr(self, "_num_shards") and len(self._shard_dim) != len(
             self._num_shards
