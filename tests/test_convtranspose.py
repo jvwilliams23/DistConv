@@ -7,25 +7,6 @@ from distconv import DCTensor, DistConvDDP, ParallelStrategy
 from utils import cleanup_parallel_strategy, fp32_allclose
 
 
-def all_gather_vlen(tensor: torch.Tensor, group=None, dim=0) -> list[torch.Tensor]:
-    """Gather tensors with the same number of dimensions but different lengths.
-
-    Credit: https://stackoverflow.com/a/78934638
-    """
-    world_size = dist.get_world_size(group=group)
-    # Gather lengths first
-    shape = torch.as_tensor(tensor.shape, device=tensor.device)
-    shapes = [torch.empty_like(shape) for _ in range(world_size)]
-    dist.all_gather(shapes, shape, group=group)
-    # Gather data
-    inputs = [tensor] * world_size
-    outputs = [
-        torch.empty(*_shape, dtype=tensor.dtype, device=tensor.device)
-        for _shape in shapes
-    ]
-    dist.all_to_all(outputs, inputs, group=group)
-    return torch.cat(outputs, dim=dim)
-
 
 @pytest.fixture(scope="module")
 def parallel_strategy(device: torch.device):
