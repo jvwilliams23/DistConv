@@ -1,11 +1,9 @@
 import pytest
 import torch
-import torch.distributed as dist
 import torch.nn as nn
-from distconv import DCTensor, DistConvDDP, ParallelStrategy
-
 from utils import cleanup_parallel_strategy, fp32_allclose
 
+from distconv import DCTensor, DistConvDDP, ParallelStrategy
 
 
 @pytest.fixture(scope="module")
